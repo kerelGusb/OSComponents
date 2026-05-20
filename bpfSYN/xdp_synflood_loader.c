@@ -37,7 +37,7 @@ static int setup_signals()
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc != 3) {
         printf("Usage: %s <iface> <threshold>\n", argv[0]);
         return 1;
     }

@@ -5,13 +5,15 @@
 #include <linux/in.h>
 #include <linux/tcp.h>
 
+// connection count
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 10240);
     __type(key, __u32);
-    __type(value, __u32); 
+    __type(value, __u32);
 } syn_count SEC(".maps");
 
+// threshold
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(max_entries, 1);
@@ -39,32 +41,42 @@ int xdp_synflood(struct xdp_md *ctx)
     if (ip->protocol != IPPROTO_TCP)
         return XDP_PASS;
 
-    struct tcphdr *tcp = (void *)ip + sizeof(*ip);
-    if ((void *)(tcp + 1) > data_end)
+    void *tcp_start = (void *)ip + ip->ihl * 4;
+    if (tcp_start + sizeof(struct tcphdr) > data_end)
         return XDP_PASS;
 
-    if (!(tcp->syn) || tcp->ack)
-        return XDP_PASS;
+    struct tcphdr *tcp = tcp_start;
 
     __u32 src_ip = ip->saddr;
+
 
     __u32 key0 = 0;
     __u32 *threshold = bpf_map_lookup_elem(&syn_threshold, &key0);
     if (!threshold)
         return XDP_PASS;
 
-    __u32 *count = bpf_map_lookup_elem(&syn_count, &src_ip);
+    if (tcp->syn && !tcp->ack) {
+        __u32 *count = bpf_map_lookup_elem(&syn_count, &src_ip);
 
-    if (count) {
-        (*count)++;
-
-        if (*count > *threshold) {
-            bpf_printk("SYN flood from %x\n", src_ip);
-            return XDP_DROP;
+        if (count) {
+            (*count)++;
+            if (*count > *threshold) {
+                bpf_printk("SYN flood from %x\n", src_ip);
+                return XDP_DROP;
+            }
+        } else {
+            __u32 init = 1;
+            bpf_map_update_elem(&syn_count, &src_ip, &init, BPF_ANY);
         }
-    } else {
-        __u32 init = 1;
-        bpf_map_update_elem(&syn_count, &src_ip, &init, BPF_ANY);
+    }
+
+    else if (tcp->ack && !tcp->syn && !tcp->rst)  {
+        __u32 *count = bpf_map_lookup_elem(&syn_count, &src_ip);
+        if (count && *count > 0) {
+            if (*count > *threshold)
+                return XDP_DROP;
+            (*count)--;
+        }
     }
 
     return XDP_PASS;
