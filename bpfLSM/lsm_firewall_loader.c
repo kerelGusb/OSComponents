@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <arpa/inet.h> 
+#include <sys/stat.h>
 #include "event.h"
 
 static volatile sig_atomic_t exiting = 0;
@@ -64,12 +65,18 @@ int main()
     int block_fd = bpf_object__find_map_fd_by_name(obj, "block_rules");
     if (block_fd >= 0) {
         struct block_key key = {};
-        strncpy(key.comm, "curl", sizeof(key.comm) - 1);
-        key.ip = inet_addr("1.1.1.1");
-        
-        __u32 val = 1;
-        bpf_map_update_elem(block_fd, &key, &val, BPF_ANY);
-        printf("[INFO] Added block rule: curl -> 1.1.1.1\n");
+        memset(&key, 0, sizeof(key));
+
+        struct stat st;
+        if (stat("/usr/bin/curl", &st) == 0) {
+            key.ino = st.st_ino;
+            key.ip = inet_addr("1.1.1.1");
+            
+            __u32 val = 1;
+            bpf_map_update_elem(block_fd, &key, &val, BPF_ANY);
+            printf("Added block rule: /usr/bin/curl (ino: %lu) -> 1.1.1.1\n",
+                    key.ino);
+        }
     }
 
     prog = bpf_object__find_program_by_name(obj, "lsm_firewall");

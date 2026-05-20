@@ -10,8 +10,8 @@ struct event
 };
 
 struct block_key {
-    char comm[16];
     __u32 ip;
+    __u64 ino;
 };
 
 #endif // _EVENT_H

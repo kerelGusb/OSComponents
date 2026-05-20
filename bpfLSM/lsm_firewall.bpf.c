@@ -3,6 +3,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_endian.h>
+#include <bpf/bpf_core_read.h>
 #include "event.h"
 
 #define AF_INET 2
@@ -44,8 +45,10 @@ int BPF_PROG(lsm_firewall, struct socket *sock, struct sockaddr *address, int ad
     }
 
     struct block_key key = {};
-    bpf_get_current_comm(&key.comm, sizeof(key.comm));
     key.ip = dest_ip;
+
+    struct task_struct *task = bpf_get_current_task_btf();
+    key.ino = BPF_CORE_READ(task, mm, exe_file, f_inode, i_ino);
 
     __u32 *rule = bpf_map_lookup_elem(&block_rules, &key);
     if (rule && *rule == 1) {
