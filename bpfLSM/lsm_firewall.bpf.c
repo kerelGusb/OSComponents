@@ -21,7 +21,6 @@ struct {
 } block_rules SEC(".maps");
 
 SEC("lsm/socket_connect")
-SEC("lsm/socket_connect")
 int BPF_PROG(lsm_firewall, struct socket *sock, struct sockaddr *address, int addrlen)
 {
     (void)sock;
