@@ -37,14 +37,14 @@ static unsigned int my_netfilter_hook(
     if (!tcph->syn || tcph->ack)
         return NF_ACCEPT;
 
-    if (dst_port != 0 && ntohs(tcph->dest) != dst_port)
-        return NF_ACCEPT;
-
-    printk(KERN_INFO "TCP %pI4:%u -> %pI4:%u\n",
-           &iph->saddr,
-           ntohs(tcph->source),
-           &iph->daddr,
-           ntohs(tcph->dest));
+    if (dst_port != 0 && ntohs(tcph->dest) == dst_port) {
+        printk(KERN_INFO "TCP connection blocked: %pI4:%u -> %pI4:%u\n",
+               &iph->saddr,
+               ntohs(tcph->source),
+               &iph->daddr,
+               ntohs(tcph->dest));
+        return NF_DROP;
+    }
 
     return NF_ACCEPT;
 }
